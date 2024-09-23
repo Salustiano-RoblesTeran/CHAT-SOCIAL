@@ -49,8 +49,56 @@ const login = async (req = request, res = response) => {
       });
     }
   };
+
+
+  //Controlador POST - registrar usuario
+const registro = async (req = request, res = response) => {
+  const datos = req.body;
+  const { nombre, correo, password} = datos;
+
+  try {
+    // validacion de correo
+    const correoExiste = await Usuario.findOne({ correo });
+
+    if (correoExiste) {
+      return res.status(400).json({
+        msg: "El correo ya existe."
+      })
+    }
+
+    const nombreExiste = await Usuario.findOne({ nombre });
+
+    if (nombreExiste) {
+      return res.status(400).json({
+        msg: "El nombre ya existe."
+      })
+    }
+
+    const usuario = new Usuario({ nombre, correo, password});
+
+    const salt = bcrypt.genSaltSync(10);
+    // const hash = bcrypt.hashSync(password, salt);
+    // usuario.password = hash;
+    usuario.password = bcrypt.hashSync(password, salt);
   
-  module.exports = {
-    login,
-  };
+    //Guardar en DB
+    await usuario.save();
   
+    res.json({
+      usuario,
+      mensaje: "usuario registrado!",
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      msg: "Problemas internos del servidor!",
+    });
+};
+}
+
+  
+module.exports = {
+  login,
+  registro
+};

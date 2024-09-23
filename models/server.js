@@ -30,7 +30,7 @@ class Server {
     this.server = http.createServer(this.app);
     this.io = socketIO(this.server, {
       cors: {
-        origin: 'https://chatealo-simple.netlify.app',
+        origin: 'http://http://localhost:5173/',
         methods: ['GET', 'POST'],
         allowedHeaders: ['Content-Type'],
       },

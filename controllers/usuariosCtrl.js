@@ -27,27 +27,6 @@ const usuariosGet = async (req = request, res = response) => {
   });
 };
 
-//Controlador POST
-const usuariosPost = async (req = request, res = response) => {
-  const datos = req.body;
-  const { nombre, correo, password} = datos;
-
-  const usuario = new Usuario({ nombre, correo, password});
-
-  const salt = bcrypt.genSaltSync(10);
-  // const hash = bcrypt.hashSync(password, salt);
-  // usuario.password = hash;
-  usuario.password = bcrypt.hashSync(password, salt);
-
-  //Guardar en DB
-  await usuario.save();
-
-  res.json({
-    usuario,
-    mensaje: "usuario registrado!",
-  });
-};
-
 //Controlador PUT
 const usuariosPut = async (req = request, res = response) => {
   const { id } = req.params;
@@ -231,7 +210,6 @@ const rechazarSolicitud = async (req = request, res = response) => {
 
 module.exports = {
   usuariosGet,
-  usuariosPost,
   usuariosPut,
   usuariosDelete,
   buscarUsuario,

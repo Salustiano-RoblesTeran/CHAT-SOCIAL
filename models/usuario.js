@@ -15,6 +15,14 @@ const UsuarioSchema = Schema({
     type: String,
     required: [true, "Este dato es obligatorio!"],
   },
+  chats: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Chat'
+  }],
+  grupo: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Grupo'
+  }],
   contactos: [{
     type: Schema.Types.ObjectId,
     ref: 'Usuario' // Hacemos referencia al modelo de usuario para añadir contactos como referencias a otros usuarios
