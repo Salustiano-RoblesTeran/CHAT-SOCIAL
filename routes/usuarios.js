@@ -1,67 +1,49 @@
 const { Router } = require("express");
 const { check } = require("express-validator");
 const { validarJWT } = require("../middlewares/validar_JWT");
-
-const router = Router();
-const {
-  esIdValido,
-} = require("../helpers/db_validators");
-
 const { validarCampos } = require("../middlewares/validar_campos");
+const { esIdValido } = require("../helpers/db_validators");
+
 const {
-  usuariosGet,
-  usuariosPut,
+  editarUsuario,
   usuariosDelete,
   enviarSolicitud,
   buscarUsuario,
   aceptarSolicitud,
-  rechazarSolicitud
+  rechazarSolicitud,
+  obtenerContactos,
+  obtenerSolicitudes
 } = require("../controllers/usuariosCtrl");
 
-//Ruta GET
-router.get("/", usuariosGet);
+const router = Router();
 
 
-//Ruta PUT - update
-router.put(
-  "/:id",
-  [
-    check("id", "No es un ID valido!").isMongoId(),
-    check("id").custom(esIdValido),
-    validarCampos,
-  ],
-  usuariosPut
-);
 
-//Ruta DELETE
-router.delete(
-  "/:id",
-  [
-    validarJWT,
-    check("id", "No es un ID valido!").isMongoId(),
-    check("id").custom(esIdValido),
-    validarCampos,
-  ],
-  usuariosDelete
-);
+// Ruta PUT para modificar un usuario
+router.put("/:id", validarJWT, editarUsuario);
 
-// Ruta GET para buscar usuarios
-router.get('/buscar',
-  [
-    validarJWT,
-    validarCampos
-  ],
-  buscarUsuario);
+// Ruta DELETE para eliminar un usuario (cambiar estado)
+router.delete("/:id", validarJWT, usuariosDelete);
 
+// Ruta GET para buscar usuarios por nombre
+router.get("/buscar", [validarJWT, validarCampos], buscarUsuario);
 
-// Ruta POST - enviar solicitud de contacto
+// Ruta POST para enviar solicitud de contacto
 router.post("/:id/enviar-solicitud", validarJWT, enviarSolicitud);
 
-// Ruta POST - aceptar solicitud de contacto
+
+// Ruta POST para aceptar solicitud de contacto
 router.post("/:id/aceptar-solicitud", validarJWT, aceptarSolicitud);
 
-// Ruta POST - rechazar solicitud de contacto
+// Ruta POST para rechazar solicitud de contacto
 router.post("/:id/rechazar-solicitud", validarJWT, rechazarSolicitud);
+
+
+// Ruta para obtener contactos
+router.get("/contactos", validarJWT, obtenerContactos); 
+
+// Ruta para obtener solicitudes de amistad
+router.get("/solicitudes", validarJWT, obtenerSolicitudes);
 
 
 

@@ -1,17 +1,21 @@
 const { Router } = require("express");
 const { validarJWT } = require("../middlewares/validar_JWT"); // Middleware para validar token
 
-const { enviarMensaje, obtenerMensajes, obtenerChats } = require("../controllers/chatCtrl");
+const { obtenerChats, crearChat, obtenerMensajes, enviarMensaje } = require('../controllers/chatCtrl');
 
 const router = Router();
 
-// Ruta para enviar un mensaje
-router.post('/enviar', validarJWT, enviarMensaje);
+// Obtener todos los chats del usuario autenticado
+router.get('/', validarJWT, obtenerChats)
 
-// Ruta para obtener mensajes entre dos usuarios
-router.get('/mensajes/:emisorId/:receptorId', validarJWT, obtenerMensajes);
+// Crear un nuevo chat
+router.post('/', validarJWT, crearChat);
 
-// Ruta para obtener chats
-router.get('/chats/:userId', validarJWT, obtenerChats);
+// Obtener mensajes de un chat específico
+router.get('/:chatId/mensajes', validarJWT, obtenerChats)
+
+// Enviar un mensaje en un chat
+router.post('/mensaje', validarJWT, enviarMensaje);
+
 
 module.exports = router;

@@ -1,112 +1,79 @@
-// controllers/chatCtrl.js
+const Chat = require('../models/chat');
+const Mensaje = require('../models/mensaje');
 
-const Chat = require('../models/chat'); // Importa el modelo de Chat
-const Usuario = require('../models/usuario')
 
-// Función para manejar el envío de mensajes
-const enviarMensaje = async (req, res) => {
-  const { mensaje, emisorId, receptorId } = req.body;
-
+// Obtener todos los chats de un usuario autenticado
+const obtenerChats = async (req, res) => {
   try {
-    // Verificar si ya existe un chat entre el emisor y el receptor
-    let chatExistente = await Chat.findOne({
-      emisor: { $in: [emisorId, receptorId] },
-      receptor: { $in: [emisorId, receptorId] }
+    const usuarioId = req.user.id; // ID del usuario autenticado obtenido del middleware de autenticación
+    const chats = await Chat.find({ participantes: usuarioId }).populate('participantes', 'nombre correo');
+    res.json(chats);
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al obtener los chats', error });
+  }
+};
+
+// Crear un nuevo chat entre dos usuarios
+const crearChat = async (req, res) => {
+  try {
+    const usuarioId = req.user.id; // ID del usuario autenticado
+    const { receptorId } = req.body;
+
+    // Verificar que el chat entre los usuarios no exista ya
+    const chatExistente = await Chat.findOne({
+      participantes: { $all: [usuarioId, receptorId] },
     });
 
     if (chatExistente) {
-      // Si ya existe la conversación, simplemente agregar el nuevo mensaje
-      chatExistente.mensaje = mensaje; // Actualizamos con el nuevo mensaje
-      chatExistente.fecha = Date.now(); // Actualizar la fecha del último mensaje
-
-      await chatExistente.save();
-
-      res.status(200).json({
-        msg: 'Mensaje agregado al chat existente',
-        chatExistente,
-      });
-    } else {
-      // Si no existe, crear un nuevo chat
-      const nuevoChat = new Chat({
-        mensaje,
-        emisor: emisorId,
-        receptor: receptorId,
-      });
-
-      await nuevoChat.save();
-
-      // Actualizar el chat en los usuarios
-      await Usuario.findByIdAndUpdate(emisorId, { $push: { chats: nuevoChat._id } });
-      await Usuario.findByIdAndUpdate(receptorId, { $push: { chats: nuevoChat._id } });
-
-      res.status(201).json({
-        msg: 'Nuevo chat creado y mensaje enviado',
-        nuevoChat,
-      });
+      return res.status(400).json({ msg: 'El chat ya existe' });
     }
-  } catch (error) {
-    console.error('Error al procesar el mensaje:', error);
-    res.status(500).json({
-      msg: 'Hubo un error al enviar el mensaje',
+
+    const nuevoChat = new Chat({
+      participantes: [usuarioId, receptorId],
     });
+
+    await nuevoChat.save();
+    res.json(nuevoChat);
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al crear el chat', error });
   }
 };
 
-// Función para obtener todos los mensajes entre dos usuarios
+// Obtener mensajes de un chat específico
 const obtenerMensajes = async (req, res) => {
-  const { emisorId, receptorId } = req.params;
-
   try {
-    const mensajes = await Chat.find({
-      $or: [
-        { emisor: emisorId, receptor: receptorId },
-        { emisor: receptorId, receptor: emisorId }
-      ]
-    }).sort({ fecha: 1 });
-
-    res.status(200).json(mensajes);
+    const { chatId } = req.params;
+    const mensajes = await Mensaje.find({ chat: chatId }).populate('emisor', 'nombre correo');
+    res.json(mensajes);
   } catch (error) {
-    console.error('Error al obtener los mensajes:', error);
-    res.status(500).json({
-      msg: 'Hubo un error al obtener los mensajes',
-    });
+    res.status(500).json({ msg: 'Error al obtener los mensajes', error });
   }
 };
 
-
-// Funcion para obtener todos los chats de un usuario
-const obtenerChats = async (req, res) => {
-  const { userId } = req.params;
-
+// Enviar un mensaje en un chat
+const enviarMensaje = async (req, res) => {
   try {
-    // Obtener el usuario por su ID
-    const usuario = await Usuario.findById(userId).populate('chats');
+    const usuarioId = req.user.id; // ID del usuario autenticado
+    const { chatId, contenido } = req.body;
 
-    if (!usuario) {
-      return res.status(404).json({
-        msg: 'Usuario no encontrado',
-      });
-    }
-
-    // Obtener los chats asociados al usuario
-    const chats = await Chat.find({
-      $or: [
-        { emisor: userId },
-        { receptor: userId }
-      ]
-    }).populate('emisor receptor'); // Opcional: esto te permitirá obtener los detalles del emisor y receptor
-
-    res.status(200).json(chats);
-  } catch (error) {
-    console.error('Error al obtener los chats:', error);
-    res.status(500).json({
-      msg: 'Hubo un error al obtener los chats',
+    const nuevoMensaje = new Mensaje({
+      emisor: usuarioId,
+      contenido,
+      chat: chatId,
     });
+
+    await nuevoMensaje.save();
+    await Chat.findByIdAndUpdate(chatId, { $push: { mensajes: nuevoMensaje._id } });
+
+    res.json(nuevoMensaje);
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al enviar el mensaje', error });
   }
 };
 
 module.exports = {
-  enviarMensaje,
+  obtenerChats,
+  crearChat,
   obtenerMensajes,
-  obtenerChats
+  enviarMensaje,
 };

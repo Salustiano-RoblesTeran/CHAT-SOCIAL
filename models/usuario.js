@@ -1,6 +1,11 @@
 const { Schema, model } = require("mongoose");
 
-const UsuarioSchema = Schema({
+const SolicitudSchema = new Schema({
+  usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
+  estado: { type: String, enum: ['Pendiente', 'Aceptado', 'Rechazado'], default: 'Pendiente' }
+});
+
+const UsuarioSchema = new Schema({
   nombre: {
     type: String,
     required: [true, "Este dato es obligatorio!"],
@@ -15,32 +20,19 @@ const UsuarioSchema = Schema({
     type: String,
     required: [true, "Este dato es obligatorio!"],
   },
-  chats: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Chat'
-  }],
-  grupo: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Grupo'
-  }],
   contactos: [{
     type: Schema.Types.ObjectId,
-    ref: 'Usuario' // Hacemos referencia al modelo de usuario para añadir contactos como referencias a otros usuarios
+    ref: 'Usuario',
   }],
-  solicitudesPendientes: [{ 
-    type: Schema.Types.ObjectId, 
-    ref: 'Usuario' 
-  }],
+  solicitudesPendientes: [SolicitudSchema], // Usamos el nuevo subesquema para manejar el estado
   estado: {
     type: Boolean,
     default: true,
   },
 });
 
-//Quitar datos de la respuesta
 UsuarioSchema.methods.toJSON = function () {
   const { password, __v, ...usuario } = this.toObject();
-
   return usuario;
 };
 

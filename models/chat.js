@@ -15,6 +15,12 @@ const ChatSchema = Schema({
     ref: 'Usuario',  // Hace referencia al modelo Usuario
     required: true
   },
+  mensajes: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'Mensaje',
+    },
+  ],
   fecha: {
     type: Date,
     default: Date.now

@@ -2,183 +2,161 @@ const { response, request } = require("express");
 const Usuario = require("../models/usuario");
 const bcrypt = require("bcryptjs");
 
-//Controlador GET
-const usuariosGet = async (req = request, res = response) => {
-  //Pedido de lista completa
-  // const usuarios = await Usuario.find();
 
-  const { desde = 0, limite = 0 } = req.query;
 
-  const estadoTrue = { estado: true };
-
-  // const usuarios = await Usuario.find().skip(desde).limit(limite);
-  // const total = await Usuario.countDocuments();
-
-  //Optimizar respuestas
-  const [total, usuarios] = await Promise.all([
-    Usuario.countDocuments(estadoTrue),
-    Usuario.find(estadoTrue).skip(desde).limit(limite),
-  ]);
-
-  res.json({
-    mensaje: "lista de usuarios",
-    total,
-    usuarios,
-  });
-};
-
-//Controlador PUT
-const usuariosPut = async (req = request, res = response) => {
+// Controlador para modificar usuario
+const editarUsuario = async (req = request, res = response) => {
   const { id } = req.params;
-
   const { password, ...updUsuario } = req.body;
 
+  // Si hay contraseña, cifrarla
   if (password) {
     const salt = bcrypt.genSaltSync(10);
     updUsuario.password = bcrypt.hashSync(password, salt);
   }
 
-  const usuario = await Usuario.findByIdAndUpdate(id, updUsuario, {
-    new: true,
-  });
+  const usuario = await Usuario.findByIdAndUpdate(id, updUsuario, { new: true });
 
   res.json({
-    mensaje: "Datos de usuario modificado!",
+    mensaje: "Datos de usuario modificados",
     usuario,
   });
 };
 
-//Controlador DELETE
+// Controlador para eliminar usuario (cambiar estado)
 const usuariosDelete = async (req = request, res = response) => {
   const { id } = req.params;
-
-  const usuarioAdmin = req.usuario;
-
-  // //!Eliminar datos de la DB
-  // const usuarioEliminado = await Usuario.findByIdAndDelete(id);
-
-  //Cambiar ESTADO del objeto
   const usuario = await Usuario.findById(id);
 
-  //Verificar estado
   if (!usuario.estado) {
     return res.json({
-      msg: "El USUARIO ya esta inactivo!",
+      mensaje: "El usuario ya está inactivo",
     });
   }
 
-  //Cambiar el valor del estado
-  const usuarioInactivo = await Usuario.findByIdAndUpdate(
-    id,
-    { estado: false },
-    { new: true }
-  );
+  const usuarioInactivo = await Usuario.findByIdAndUpdate(id, { estado: false }, { new: true });
 
   res.json({
-    mensaje: "Datos eliminados!",
+    mensaje: "Usuario eliminado",
     usuarioInactivo,
-    // usuarioEliminado,
-    usuarioAdmin,
   });
-
-
 };
 
-
+// Controlador para buscar usuarios por nombre
 const buscarUsuario = async (req = request, res = response) => {
-  const { nombre = '' } = req.query;
+  const { nombre = "" } = req.query;
+  const usuarioId = req.usuario._id; // Obtener el ID del usuario autenticado desde el middleware
 
-  const usuarios = await Usuario.find({ 
-    nombre: { $regex: nombre, $options: 'i' } // 'i' para ignorar mayúsculas y minúsculas
-  });
+  try {
+    // Buscar usuarios que coincidan con el nombre y excluir al usuario actual
+    const usuarios = await Usuario.find({
+      nombre: { $regex: nombre, $options: "i" },
+      _id: { $ne: usuarioId }, // Excluir al usuario actual
+    });
 
-  res.json({
-    total: usuarios.length,
-    usuarios
-  });
+    res.json({
+      total: usuarios.length,
+      usuarios,
+    });
+  } catch (error) {
+    console.error("Error al buscar usuarios:", error);
+    res.status(500).json({
+      msg: "Error al buscar usuarios",
+    });
+  }
 };
 
-// Controlador para enviar solicitud de contacto
+// Controlador para enviar solicitud de amistad
 const enviarSolicitud = async (req = request, res = response) => {
-  const { id } = req.params; // ID del usuario que envía la solicitud
-  const { contactoId } = req.body; // ID del usuario que recibe la solicitud
+  const { id } = req.params;
+  const { contactoId } = req.body;
 
   try {
     const usuario = await Usuario.findById(id);
     const contacto = await Usuario.findById(contactoId);
 
     if (!usuario || !contacto) {
-      return res.status(404).json({ mensaje: "Uno de los usuarios no fue encontrado" });
+      return res.status(404).json({ mensaje: "Usuario no encontrado" });
     }
 
-    // Verificar si ya es contacto
-    if (usuario.contactos.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "Ya es contacto" });
+    const solicitudExistente = usuario.solicitudesPendientes.find(
+      (solicitud) => solicitud.usuario.toString() === contactoId
+    );
+
+    if (solicitudExistente) {
+      return res.status(400).json({ mensaje: `Solicitud ${solicitudExistente.estado.toLowerCase()}` });
     }
 
-    // Verificar si ya existe una solicitud pendiente
-    if (usuario.solicitudesPendientes.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "Ya existe una solicitud pendiente" });
-    }
-
-    // Agregar solicitud a pendientes
-    usuario.solicitudesPendientes.push(contactoId);
+    usuario.solicitudesPendientes.push({ usuario: contactoId, estado: 'Pendiente' });
     await usuario.save();
 
     res.json({ mensaje: "Solicitud de contacto enviada" });
   } catch (error) {
-    console.error(error);
+    console.error("Error al enviar la solicitud:", error);
     res.status(500).json({ mensaje: "Error al enviar la solicitud" });
   }
 };
 
-// Controlador para aceptar solicitud de contacto
+
+
+// Controlador para aceptar solicitud de amistad
+// Controlador para aceptar solicitud de amistad
 const aceptarSolicitud = async (req = request, res = response) => {
-  const { id } = req.params; // ID del usuario que acepta la solicitud
-  const { contactoId } = req.body; // ID del usuario que envió la solicitud
+  const { contactoId } = req.body; // ID del contacto que se acepta
+  const usuarioId = req.usuario._id; // Obtén el ID del usuario actual desde el token
 
   try {
-    const usuario = await Usuario.findById(id);
-    const contacto = await Usuario.findById(contactoId);
-
-    if (!usuario || !contacto) {
-      return res.status(404).json({ mensaje: "Uno de los usuarios no fue encontrado" });
+    // Encuentra el usuario que está aceptando la solicitud
+    const usuario = await Usuario.findById(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
 
-    // Verificar si ya es contacto
-    if (usuario.contactos.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "Ya es contacto" });
+    // Encuentra la solicitud en solicitudesPendientes
+    const solicitudIndex = usuario.solicitudesPendientes.findIndex(s => s.usuario.toString() === contactoId);
+    if (solicitudIndex === -1) {
+      return res.status(400).json({ mensaje: 'Solicitud no encontrada' });
     }
 
-    // Verificar si existe una solicitud pendiente
-    if (!usuario.solicitudesPendientes.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "No existe una solicitud pendiente de este usuario" });
+    // Cambia el estado de la solicitud a "Aceptado"
+    usuario.solicitudesPendientes[solicitudIndex].estado = 'Aceptado';
+
+    // Agregar el contacto a la lista de contactos del usuario que acepta la solicitud
+    if (!usuario.contactos.includes(contactoId)) {
+      usuario.contactos.push(contactoId);
     }
 
-    // Aceptar la solicitud: agregar a contactos
-    usuario.contactos.push(contactoId);
-    contacto.contactos.push(id); // También añadir al contacto del otro usuario
+    // Eliminar la solicitud de solicitudesPendientes
+    usuario.solicitudesPendientes.splice(solicitudIndex, 1);
 
-    // Eliminar la solicitud pendiente
-    usuario.solicitudesPendientes = usuario.solicitudesPendientes.filter(
-      solicitud => solicitud.toString() !== contactoId
-    );
-
-    // Guardar cambios
+    // Guardar cambios en el usuario que acepta
     await usuario.save();
-    await contacto.save();
 
-    res.json({ mensaje: "Solicitud de contacto aceptada exitosamente", usuario });
+    // También agrega el usuario aceptado a su lista de contactos
+    const contacto = await Usuario.findById(contactoId);
+    if (contacto) {
+      // Agregar el usuario que aceptó la solicitud a la lista de contactos del contacto
+      if (!contacto.contactos.includes(usuarioId)) {
+        contacto.contactos.push(usuarioId);
+      }
+      
+      // Guardar cambios en el contacto
+      await contacto.save();
+    }
+
+    res.json({ mensaje: 'Solicitud aceptada y contacto agregado' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: "Error al aceptar la solicitud de contacto" });
+    res.status(500).json({ mensaje: 'Error al aceptar la solicitud' });
   }
 };
 
-// Controlador para rechazar solicitud de contacto
+
+
+// Controlador para rechazar solicitud de amistad
 const rechazarSolicitud = async (req = request, res = response) => {
-  const { id } = req.params; // ID del usuario que rechaza la solicitud
-  const { contactoId } = req.body; // ID del usuario que envió la solicitud
+  const { id } = req.params;
+  const { contactoId } = req.body;
 
   try {
     const usuario = await Usuario.findById(id);
@@ -187,33 +165,60 @@ const rechazarSolicitud = async (req = request, res = response) => {
       return res.status(404).json({ mensaje: "Usuario no encontrado" });
     }
 
-    // Verificar si existe una solicitud pendiente
     if (!usuario.solicitudesPendientes.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "No existe una solicitud pendiente de este usuario" });
+      return res.status(400).json({ mensaje: "No hay solicitud pendiente" });
     }
 
-    // Eliminar la solicitud pendiente
-    usuario.solicitudesPendientes = usuario.solicitudesPendientes.filter(
-      solicitud => solicitud.toString() !== contactoId
-    );
-
-    // Guardar cambios
+    usuario.solicitudesPendientes = usuario.solicitudesPendientes.filter(solicitud => solicitud.toString() !== contactoId);
     await usuario.save();
 
-    res.json({ mensaje: "Solicitud de contacto rechazada exitosamente", usuario });
+    res.json({ mensaje: "Solicitud de contacto rechazada" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: "Error al rechazar la solicitud de contacto" });
+    res.status(500).json({ mensaje: "Error al rechazar la solicitud" });
+  }
+};
+
+const obtenerContactos = async (req, res) => {
+  const usuarioId = req.usuario._id; // Obtener ID del usuario autenticado
+
+  try {
+    const usuario = await Usuario.findById(usuarioId).populate("contactos");
+    res.json({ contactos: usuario.contactos });
+  } catch (error) {
+    console.error("Error al obtener contactos:", error);
+    res.status(500).json({ msg: "Error al obtener contactos" });
+  }
+};
+
+// Controlador para obtener solicitudes de amistad
+const obtenerSolicitudes = async (req, res) => {
+  const usuarioId = req.usuario._id; // ID del usuario autenticado
+
+  try {
+    // Encuentra el usuario
+    const usuario = await Usuario.findById(usuarioId).populate('solicitudesPendientes.usuario', 'nombre correo');
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+    }
+
+    // Retorna las solicitudes pendientes
+    res.json(usuario.solicitudesPendientes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al obtener las solicitudes' });
   }
 };
 
 
+
 module.exports = {
-  usuariosGet,
-  usuariosPut,
+  editarUsuario,
   usuariosDelete,
   buscarUsuario,
   enviarSolicitud,
   aceptarSolicitud,
-  rechazarSolicitud
-}
+  rechazarSolicitud,
+  obtenerContactos,
+  obtenerSolicitudes
+};

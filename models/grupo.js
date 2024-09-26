@@ -14,10 +14,12 @@ const GrupoSchema = Schema({
     type: Schema.Types.ObjectId,
     ref: 'Usuario', // Referencia a los usuarios que son miembros del grupo
   }],
-  mensajes: [{
-    type: Schema.Types.ObjectId,
-    ref: 'MensajeGrupo', // Referencia a los mensajes del grupo
-  }],
+  mensajes: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'Mensaje',
+    },
+  ],
 });
 
 module.exports = model("Grupo", GrupoSchema);

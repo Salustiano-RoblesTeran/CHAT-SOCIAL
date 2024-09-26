@@ -1,122 +1,85 @@
-const Grupo = require('../models/grupo');
-const MensajeGrupo = require('../models/mensajeGrupo');
+const Chat = require('../models/chat');
+const Mensaje = require('../models/mensaje');
 
-// Función para crear un grupo
-const crearGrupo = async (req, res) => {
-  const { nombre } = req.body;
-  const adminId = req.params.id; // Obtener el ID del admin desde los parámetros de la ruta
 
+// Obtener todos los grupos de un usuario autenticado
+const obtenerGrupos = async (req, res) => {
   try {
+    const usuarioId = req.user.id;
+    const grupos = await Grupo.find({ participantes: usuarioId }).populate('participantes', 'nombre correo');
+    res.json(grupos);
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al obtener los grupos', error });
+  }
+};
+
+// Crear un nuevo grupo
+const crearGrupo = async (req, res) => {
+  try {
+    const usuarioId = req.user.id;
+    const { nombre, descripcion } = req.body;
+
     const nuevoGrupo = new Grupo({
       nombre,
-      administrador: adminId,
-      miembros: [adminId] // El administrador se agrega como miembro
+      descripcion,
+      administrador: usuarioId,
+      participantes: [usuarioId],
     });
 
     await nuevoGrupo.save();
-    res.status(201).json(nuevoGrupo);
+    res.json(nuevoGrupo);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Error al crear el grupo' });
+    res.status(500).json({ msg: 'Error al crear el grupo', error });
   }
 };
 
-const agregarMiembro = async (req, res) => {
-    const { id } = req.params; // ID del grupo
-    const { adminId, miembroId } = req.body; // ID del administrador y del miembro a agregar
-  
-    try {
-      // Buscar el grupo por ID
-      const grupo = await Grupo.findById(id);
-  
-      // Verificar si el grupo existe
-      if (!grupo) {
-        return res.status(404).json({ msg: 'Grupo no encontrado' });
-      }
-  
-      // Verificar si el adminId coincide con el administrador del grupo
-      if (grupo.administrador.toString() !== adminId) {
-        return res.status(403).json({ msg: 'No tienes permiso para agregar miembros' });
-      }
-  
-      // Agregar el nuevo miembro al grupo
-      grupo.miembros.push(miembroId);
-      await grupo.save();
-  
-      res.status(200).json({ msg: 'Miembro agregado exitosamente', grupo });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ msg: 'Error al agregar el miembro al grupo' });
-    }
-  };
-
-// Función para enviar un mensaje al grupo
-const enviarMensajeGrupo = async (req, res) => {
-  const { id } = req.params; // ID del grupo
-  const { mensaje, emisorId } = req.body; // Mensaje y emisorId desde el body
-
+// Añadir participante a un grupo
+const addParticipante = async (req, res) => {
   try {
-    // Verificar si el grupo existe
-    const grupo = await Grupo.findById(id);
+    const { grupoId } = req.params;
+    const { participanteId } = req.body;
 
-    if (!grupo) {
-      return res.status(404).json({ msg: 'Grupo no encontrado' });
+    const grupo = await Grupo.findById(grupoId);
+    if (!grupo) return res.status(404).json({ msg: 'Grupo no encontrado' });
+
+    // Verificar que el usuario no esté ya en el grupo
+    if (grupo.participantes.includes(participanteId)) {
+      return res.status(400).json({ msg: 'El usuario ya está en el grupo' });
     }
 
-    // Verificar si el usuario es miembro del grupo
-    if (!grupo.miembros.includes(emisorId)) {
-      return res.status(403).json({ msg: 'El emisor no es miembro de este grupo' });
-    }
+    grupo.participantes.push(participanteId);
+    await grupo.save();
 
-    // Guardar el mensaje
-    const nuevoMensaje = new MensajeGrupo({
-      grupo: id,
-      emisor: emisorId,
-      mensaje,
+    res.json(grupo);
+  } catch (error) {
+    res.status(500).json({ msg: 'Error al añadir participante', error });
+  }
+};
+
+// Enviar mensaje en un grupo
+const enviarMensajeGrupo = async (req, res) => {
+  try {
+    const usuarioId = req.user.id;
+    const { grupoId, contenido } = req.body;
+
+    const nuevoMensaje = new Mensaje({
+      emisor: usuarioId,
+      contenido,
+      grupo: grupoId,
     });
 
     await nuevoMensaje.save();
+    await Grupo.findByIdAndUpdate(grupoId, { $push: { mensajes: nuevoMensaje._id } });
 
-    // Añadir el mensaje al grupo
-    grupo.mensajes.push(nuevoMensaje._id);
-    await grupo.save();
-
-    res.status(201).json(nuevoMensaje);
+    res.json(nuevoMensaje);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Error al enviar el mensaje' });
-  }
-};
-
-// Función para obtener los mensajes de un grupo
-const obtenerChatGrupo = async (req, res) => {
-  const { id } = req.params; // ID del grupo
-
-  try {
-    // Buscar el grupo por su ID y popular el campo de mensajes
-    const grupo = await Grupo.findById(id).populate({
-      path: 'mensajes',
-      populate: {
-        path: 'emisor', // Esto sirve para popular también el campo del emisor
-        select: 'nombre correo' // Seleccionamos solo los campos de nombre y correo del emisor
-      }
-    });
-
-    if (!grupo) {
-      return res.status(404).json({ msg: 'Grupo no encontrado' });
-    }
-
-    // Devolver los mensajes del grupo
-    res.json(grupo.mensajes);
-  } catch (error) {
-    console.error('Error al obtener los mensajes del grupo:', error);
-    res.status(500).json({ msg: 'Error al obtener los mensajes del grupo' });
+    res.status(500).json({ msg: 'Error al enviar el mensaje', error });
   }
 };
 
 module.exports = {
+  obtenerGrupos,
   crearGrupo,
-  agregarMiembro,
+  addParticipante,
   enviarMensajeGrupo,
-  obtenerChatGrupo
 };

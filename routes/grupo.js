@@ -1,17 +1,22 @@
 const { Router } = require("express");
-const { crearGrupo, agregarMiembro, enviarMensajeGrupo, obtenerChatGrupo } = require("../controllers/grupoCtrl");
+const { obtenerGrupos, crearGrupo, addParticipante, enviarMensajeGrupo } = require('../controllers/grupoCtrl');
+
 const { validarJWT } = require("../middlewares/validar_JWT");
 
 const router = Router();
 
-// Ruta para crear un grupo
-router.post("/:id", validarJWT, crearGrupo);
+// Obtener todos los grupos del usuario autenticado
+router.get('/', validarJWT, obtenerGrupos);
 
-// Ruta POST para agregar un miembro al grupo
-router.post("/:id/agregar-miembro", validarJWT, agregarMiembro);
+// Crear un nuevo grupo
+router.post('/', validarJWT, crearGrupo);
 
-router.post("/:id/mensaje", validarJWT, enviarMensajeGrupo);
+// Añadir participante a un grupo
+router.post('/:grupoId/participante', validarJWT, addParticipante)
 
-router.get("/:id/mensajes", validarJWT, obtenerChatGrupo);
+// Enviar mensaje en un grupo
+router.post('mensaje', validarJWT, enviarMensajeGrupo)
+
+
 
 module.exports = router;
