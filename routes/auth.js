@@ -7,6 +7,8 @@ const {esMailValido} = require("../helpers/db_validators")
 
 const router = Router();
 
+// Ruta Iniciar Sesion
+
 router.post(
   "/login",
   [
@@ -18,7 +20,7 @@ router.post(
   login
 );
 
-//Ruta POST - register
+//Ruta Registrarse
 router.post(
   "/registro",
   [

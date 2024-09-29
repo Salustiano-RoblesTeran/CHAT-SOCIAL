@@ -15,7 +15,6 @@ class Server {
     this.usuariosPath = "/api/usuarios";
     this.authPath = "/api/auth";
     this.chatPath = "/api/chat"; 
-    this.grupoPath = "/api/grupos"; 
 
     // Conectar a la base de datos
     this.conectarDB();
@@ -55,7 +54,6 @@ class Server {
     this.app.use(this.usuariosPath, require("../routes/usuarios"));
     this.app.use(this.authPath, require("../routes/auth"));
     this.app.use(this.chatPath, require("../routes/chat")); // Agregar la ruta del chat
-    this.app.use(this.grupoPath, require("../routes/grupo"));
 
   }
 

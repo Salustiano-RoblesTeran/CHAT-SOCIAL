@@ -2,6 +2,8 @@ const { response, request } = require("express");
 const Usuario = require("../models/usuario");
 const bcrypt = require("bcryptjs");
 
+const SolicitudAmistad = require("../models/solicitud")
+
 
 
 // Controlador para modificar usuario
@@ -45,13 +47,13 @@ const usuariosDelete = async (req = request, res = response) => {
 // Controlador para buscar usuarios por nombre
 const buscarUsuario = async (req = request, res = response) => {
   const { nombre = "" } = req.query;
-  const usuarioId = req.usuario._id; // Obtener el ID del usuario autenticado desde el middleware
-
+  const { id } = req.usuario; // Obtener el ID del usuario utilizando el token!
+  
   try {
     // Buscar usuarios que coincidan con el nombre y excluir al usuario actual
     const usuarios = await Usuario.find({
       nombre: { $regex: nombre, $options: "i" },
-      _id: { $ne: usuarioId }, // Excluir al usuario actual
+      _id: { $ne: id }, // Excluir al usuario por ID
     });
 
     res.json({
@@ -68,29 +70,53 @@ const buscarUsuario = async (req = request, res = response) => {
 
 // Controlador para enviar solicitud de amistad
 const enviarSolicitud = async (req = request, res = response) => {
-  const { id } = req.params;
-  const { contactoId } = req.body;
+  const { id } = req.usuario; // ID del usuario que envía la solicitud
+  const { contactoId } = req.body; // ID del usuario que recibe la solicitud
 
   try {
-    const usuario = await Usuario.findById(id);
-    const contacto = await Usuario.findById(contactoId);
+    const usuarioEnvia = await Usuario.findById(id);
+    const usuarioRecibe = await Usuario.findById(contactoId);
 
-    if (!usuario || !contacto) {
+    if (id === contactoId) {
+      return res.status(400).json({ mensaje: "No puedes enviarte una solicitud a ti mismo" });
+    }
+    
+
+    if (!usuarioEnvia || !usuarioRecibe) {
       return res.status(404).json({ mensaje: "Usuario no encontrado" });
     }
 
-    const solicitudExistente = usuario.solicitudesPendientes.find(
-      (solicitud) => solicitud.usuario.toString() === contactoId
-    );
+    // Verificar si ya existe una solicitud pendiente o ya son amigos
+    const solicitudExistente = await SolicitudAmistad.findOne({
+      usuarioEnvia: id,
+      usuarioRecibe: contactoId,
+      estado: 'Pendiente'
+    });
 
     if (solicitudExistente) {
-      return res.status(400).json({ mensaje: `Solicitud ${solicitudExistente.estado.toLowerCase()}` });
+      return res.status(400).json({ mensaje: `Solicitud ya enviada` });
     }
 
-    usuario.solicitudesPendientes.push({ usuario: contactoId, estado: 'Pendiente' });
-    await usuario.save();
+    if (usuarioEnvia.amigos.includes(contactoId)) {
+      return res.status(400).json({ mensaje: "Ya son amigos" });
+    }
 
-    res.json({ mensaje: "Solicitud de contacto enviada" });
+    // Crear la solicitud de amistad
+    const nuevaSolicitud = new SolicitudAmistad({
+      usuarioEnvia: id,
+      usuarioRecibe: contactoId,
+    });
+
+    await nuevaSolicitud.save();
+
+    // Agregar la solicitud a las listas de ambos usuarios
+    usuarioEnvia.solicitudesEnviadas.push(nuevaSolicitud._id);
+    usuarioRecibe.solicitudesPendientes.push(nuevaSolicitud._id);
+
+    await usuarioEnvia.save();
+    await usuarioRecibe.save();
+
+    res.json({ mensaje: "Solicitud de amistad enviada" });
   } catch (error) {
     console.error("Error al enviar la solicitud:", error);
     res.status(500).json({ mensaje: "Error al enviar la solicitud" });
@@ -99,85 +125,65 @@ const enviarSolicitud = async (req = request, res = response) => {
 
 
 
-// Controlador para aceptar solicitud de amistad
+
 // Controlador para aceptar solicitud de amistad
 const aceptarSolicitud = async (req = request, res = response) => {
-  const { contactoId } = req.body; // ID del contacto que se acepta
-  const usuarioId = req.usuario._id; // Obtén el ID del usuario actual desde el token
+  const { solicitudId } = req.body;
 
   try {
-    // Encuentra el usuario que está aceptando la solicitud
-    const usuario = await Usuario.findById(usuarioId);
-    if (!usuario) {
-      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+    const solicitud = await SolicitudAmistad.findById(solicitudId).populate('usuarioEnvia usuarioRecibe');
+
+    if (!solicitud || solicitud.estado !== 'Pendiente') {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada o ya procesada' });
     }
 
-    // Encuentra la solicitud en solicitudesPendientes
-    const solicitudIndex = usuario.solicitudesPendientes.findIndex(s => s.usuario.toString() === contactoId);
-    if (solicitudIndex === -1) {
-      return res.status(400).json({ mensaje: 'Solicitud no encontrada' });
-    }
+    // Marcar la solicitud como aceptada
+    solicitud.estado = 'Aceptado';
+    await solicitud.save();
 
-    // Cambia el estado de la solicitud a "Aceptado"
-    usuario.solicitudesPendientes[solicitudIndex].estado = 'Aceptado';
+    // Agregar a ambos usuarios como amigos
+    const { usuarioEnvia, usuarioRecibe } = solicitud;
 
-    // Agregar el contacto a la lista de contactos del usuario que acepta la solicitud
-    if (!usuario.contactos.includes(contactoId)) {
-      usuario.contactos.push(contactoId);
-    }
+    usuarioEnvia.amigos.push(usuarioRecibe._id);
+    usuarioRecibe.amigos.push(usuarioEnvia._id);
 
-    // Eliminar la solicitud de solicitudesPendientes
-    usuario.solicitudesPendientes.splice(solicitudIndex, 1);
+    await usuarioEnvia.save();
+    await usuarioRecibe.save();
 
-    // Guardar cambios en el usuario que acepta
-    await usuario.save();
-
-    // También agrega el usuario aceptado a su lista de contactos
-    const contacto = await Usuario.findById(contactoId);
-    if (contacto) {
-      // Agregar el usuario que aceptó la solicitud a la lista de contactos del contacto
-      if (!contacto.contactos.includes(usuarioId)) {
-        contacto.contactos.push(usuarioId);
-      }
-      
-      // Guardar cambios en el contacto
-      await contacto.save();
-    }
-
-    res.json({ mensaje: 'Solicitud aceptada y contacto agregado' });
+    res.json({ mensaje: 'Solicitud de amistad aceptada' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ mensaje: 'Error al aceptar la solicitud' });
+    console.error("Error al aceptar la solicitud:", error);
+    res.status(500).json({ mensaje: "Error al aceptar la solicitud" });
   }
 };
+
+
 
 
 
 // Controlador para rechazar solicitud de amistad
 const rechazarSolicitud = async (req = request, res = response) => {
-  const { id } = req.params;
-  const { contactoId } = req.body;
+  const { solicitudId } = req.body;
 
   try {
-    const usuario = await Usuario.findById(id);
+    const solicitud = await SolicitudAmistad.findById(solicitudId);
 
-    if (!usuario) {
-      return res.status(404).json({ mensaje: "Usuario no encontrado" });
+    if (!solicitud || solicitud.estado !== 'Pendiente') {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada o ya procesada' });
     }
 
-    if (!usuario.solicitudesPendientes.includes(contactoId)) {
-      return res.status(400).json({ mensaje: "No hay solicitud pendiente" });
-    }
+    // Marcar la solicitud como rechazada
+    solicitud.estado = 'Rechazado';
+    await solicitud.save();
+    
 
-    usuario.solicitudesPendientes = usuario.solicitudesPendientes.filter(solicitud => solicitud.toString() !== contactoId);
-    await usuario.save();
-
-    res.json({ mensaje: "Solicitud de contacto rechazada" });
+    res.json({ mensaje: 'Solicitud de amistad rechazada' });
   } catch (error) {
-    console.error(error);
+    console.error("Error al rechazar la solicitud:", error);
     res.status(500).json({ mensaje: "Error al rechazar la solicitud" });
   }
 };
+
 
 const obtenerContactos = async (req, res) => {
   const usuarioId = req.usuario._id; // Obtener ID del usuario autenticado

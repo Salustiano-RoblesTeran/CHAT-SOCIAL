@@ -1,35 +1,37 @@
-const { Schema, model } = require("mongoose");
+const { Schema, model } = require('mongoose');
 
-const SolicitudSchema = new Schema({
-  usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
-  estado: { type: String, enum: ['Pendiente', 'Aceptado', 'Rechazado'], default: 'Pendiente' }
-});
-
-const UsuarioSchema = new Schema({
+const UsuarioSchema = Schema({
   nombre: {
     type: String,
-    required: [true, "Este dato es obligatorio!"],
-    unique: true,
+    required: true
   },
   correo: {
     type: String,
-    required: [true, "Este dato es obligatorio!"],
-    unique: true,
+    required: true,
+    unique: true
   },
   password: {
     type: String,
-    required: [true, "Este dato es obligatorio!"],
+    required: true
   },
-  contactos: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Usuario',
-  }],
-  solicitudesPendientes: [SolicitudSchema], // Usamos el nuevo subesquema para manejar el estado
   estado: {
     type: Boolean,
-    default: true,
+    default: true
   },
+  amigos: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Usuario'
+  }],
+  solicitudesPendientes: [{
+    type: Schema.Types.ObjectId,
+    ref: 'SolicitudAmistad'
+  }],
+  solicitudesEnviadas: [{
+    type: Schema.Types.ObjectId,
+    ref: 'SolicitudAmistad'
+  }],
 });
+
 
 UsuarioSchema.methods.toJSON = function () {
   const { password, __v, ...usuario } = this.toObject();

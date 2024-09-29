@@ -1,21 +1,19 @@
 const { Router } = require("express");
 const { validarJWT } = require("../middlewares/validar_JWT"); // Middleware para validar token
+const { verificarAmistad } = require("../middlewares/validar_amistad")
 
-const { obtenerChats, crearChat, obtenerMensajes, enviarMensaje } = require('../controllers/chatCtrl');
+const { iniciarConversacion, enviarMensaje, obtenerConversacion } = require('../controllers/chatCtrl');
 
 const router = Router();
 
-// Obtener todos los chats del usuario autenticado
-router.get('/', validarJWT, obtenerChats)
+// Iniciar una conversación
+router.post('/iniciar', validarJWT, verificarAmistad, iniciarConversacion);
 
-// Crear un nuevo chat
-router.post('/', validarJWT, crearChat);
+// Enviar un mensaje
+router.post('/enviar-mensaje', validarJWT, verificarAmistad, enviarMensaje);
 
-// Obtener mensajes de un chat específico
-router.get('/:chatId/mensajes', validarJWT, obtenerChats)
-
-// Enviar un mensaje en un chat
-router.post('/mensaje', validarJWT, enviarMensaje);
+// Obtener la conversación entre dos amigos
+router.get('/conversacion/:amigoId', validarJWT, obtenerConversacion);
 
 
 module.exports = router;

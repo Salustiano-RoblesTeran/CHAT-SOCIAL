@@ -1,79 +1,97 @@
-const Chat = require('../models/chat');
-const Mensaje = require('../models/mensaje');
+const { response, request } = require("express");
+const Conversacion = require('../models/conversacion');
+const Mensaje = require('../models/mensaje')
 
+const iniciarConversacion = async (req = request, res = response) => {
+  const { amigoId } = req.body;
+  const { _id: usuarioId } = req.usuario; // ID del usuario autenticado
 
-// Obtener todos los chats de un usuario autenticado
-const obtenerChats = async (req, res) => {
   try {
-    const usuarioId = req.user.id; // ID del usuario autenticado obtenido del middleware de autenticación
-    const chats = await Chat.find({ participantes: usuarioId }).populate('participantes', 'nombre correo');
-    res.json(chats);
-  } catch (error) {
-    res.status(500).json({ msg: 'Error al obtener los chats', error });
-  }
-};
-
-// Crear un nuevo chat entre dos usuarios
-const crearChat = async (req, res) => {
-  try {
-    const usuarioId = req.user.id; // ID del usuario autenticado
-    const { receptorId } = req.body;
-
-    // Verificar que el chat entre los usuarios no exista ya
-    const chatExistente = await Chat.findOne({
-      participantes: { $all: [usuarioId, receptorId] },
+    // Verificar si ya existe una conversación entre los dos amigos
+    let conversacion = await Conversacion.findOne({
+      participantes: { $all: [usuarioId, amigoId] }
     });
 
-    if (chatExistente) {
-      return res.status(400).json({ msg: 'El chat ya existe' });
+    // Si no existe la conversación, crear una nueva
+    if (!conversacion) {
+      conversacion = new Conversacion({
+        participantes: [usuarioId, amigoId]
+      });
+      await conversacion.save();
     }
 
-    const nuevoChat = new Chat({
-      participantes: [usuarioId, receptorId],
+    res.json({ conversacion });
+  } catch (error) {
+    console.error("Error al iniciar conversación:", error);
+    res.status(500).json({ mensaje: "Error al iniciar conversación" });
+  }
+};
+
+const enviarMensaje = async (req = request, res = response) => {
+  const { mensaje, amigoId } = req.body;
+  const { _id: usuarioId } = req.usuario; // ID del usuario autenticado
+
+  try {
+    // Verificar si existe una conversación
+    let conversacion = await Conversacion.findOne({
+      participantes: { $all: [usuarioId, amigoId] }
     });
 
-    await nuevoChat.save();
-    res.json(nuevoChat);
-  } catch (error) {
-    res.status(500).json({ msg: 'Error al crear el chat', error });
-  }
-};
+    if (!conversacion) {
+      return res.status(404).json({ mensaje: "No existe una conversación con este usuario" });
+    }
 
-// Obtener mensajes de un chat específico
-const obtenerMensajes = async (req, res) => {
-  try {
-    const { chatId } = req.params;
-    const mensajes = await Mensaje.find({ chat: chatId }).populate('emisor', 'nombre correo');
-    res.json(mensajes);
-  } catch (error) {
-    res.status(500).json({ msg: 'Error al obtener los mensajes', error });
-  }
-};
-
-// Enviar un mensaje en un chat
-const enviarMensaje = async (req, res) => {
-  try {
-    const usuarioId = req.user.id; // ID del usuario autenticado
-    const { chatId, contenido } = req.body;
-
+    // Crear un nuevo mensaje
     const nuevoMensaje = new Mensaje({
-      emisor: usuarioId,
-      contenido,
-      chat: chatId,
+      remitente: usuarioId,
+      receptor: amigoId,
+      contenido: mensaje,
     });
 
+    // Guardar el mensaje en la colección de Mensajes
     await nuevoMensaje.save();
-    await Chat.findByIdAndUpdate(chatId, { $push: { mensajes: nuevoMensaje._id } });
+    console.log("Mensaje guardado:", nuevoMensaje); // Verifica que el mensaje se guarda
 
-    res.json(nuevoMensaje);
+    // Agregar la referencia del mensaje a la conversación
+    conversacion.mensajes.push(nuevoMensaje._id);
+
+    // Guardar la conversación con el nuevo mensaje
+    await conversacion.save();
+
+    res.json({ conversacion });
   } catch (error) {
-    res.status(500).json({ msg: 'Error al enviar el mensaje', error });
+    console.error("Error al enviar mensaje:", error);
+    res.status(500).json({ mensaje: "Error al enviar mensaje" });
   }
 };
+
+
+
+
+const obtenerConversacion = async (req = request, res = response) => {
+  const { amigoId } = req.params; // El ID del amigo viene de los parámetros
+  const { _id: usuarioId } = req.usuario; // El ID del usuario autenticado
+
+  try {
+    // Buscar la conversación entre los dos amigos
+    const conversacion = await Conversacion.findOne({
+      participantes: { $all: [usuarioId, amigoId] }
+    }).populate('mensajes'); // Opcional: Puedes usar populate para traer los mensajes
+
+    if (!conversacion) {
+      return res.status(404).json({ mensaje: "No se encontró conversación entre los usuarios" });
+    }
+
+    res.json({ mensajes: conversacion.mensajes });
+  } catch (error) {
+    console.error("Error al obtener conversación:", error);
+    res.status(500).json({ mensaje: "Error al obtener conversación" });
+  }
+};
+
 
 module.exports = {
-  obtenerChats,
-  crearChat,
-  obtenerMensajes,
+  iniciarConversacion,
   enviarMensaje,
+  obtenerConversacion,
 };

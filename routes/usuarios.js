@@ -29,14 +29,14 @@ router.delete("/:id", validarJWT, usuariosDelete);
 router.get("/buscar", [validarJWT, validarCampos], buscarUsuario);
 
 // Ruta POST para enviar solicitud de contacto
-router.post("/:id/enviar-solicitud", validarJWT, enviarSolicitud);
+router.post("/amigos/enviar-solicitud", validarJWT, enviarSolicitud);
 
 
 // Ruta POST para aceptar solicitud de contacto
-router.post("/:id/aceptar-solicitud", validarJWT, aceptarSolicitud);
+router.post("/amigos/aceptar-solicitud", validarJWT, aceptarSolicitud);
 
 // Ruta POST para rechazar solicitud de contacto
-router.post("/:id/rechazar-solicitud", validarJWT, rechazarSolicitud);
+router.post("/amigos/rechazar-solicitud", validarJWT, rechazarSolicitud);
 
 
 // Ruta para obtener contactos

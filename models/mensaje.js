@@ -1,27 +1,28 @@
 const { Schema, model } = require("mongoose");
 
-const mensajeSchema = Schema({
-  emisor: {
+const MensajeSchema = Schema({
+  remitente: {
     type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
+    ref: 'Usuario',
+    required: true
+  },
+  receptor: {
+    type: Schema.Types.ObjectId,
+    ref: 'Usuario',
+    required: true
   },
   contenido: {
     type: String,
-    required: true,
+    required: true
   },
-  fecha: {
-    type: Date,
-    default: Date.now,
-  },
-  chat: {
-    type: Schema.Types.ObjectId,
-    ref: 'Chat',
-  },
-  grupo: {
-    type: Schema.Types.ObjectId,
-    ref: 'Grupo',
-  },
+  leido: {
+    type: Boolean,
+    default: false
+  }
+}, {
+  timestamps: true // Guardará la fecha y hora en que se envió el mensaje
 });
 
-module.exports = model('Mensaje', mensajeSchema);
+module.exports = model('Mensaje', MensajeSchema);
+
+
