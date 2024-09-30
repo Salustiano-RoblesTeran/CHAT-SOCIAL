@@ -5,6 +5,7 @@ const { validarCampos } = require("../middlewares/validar_campos");
 const { esIdValido } = require("../helpers/db_validators");
 
 const {
+  obtenerNombre,
   editarUsuario,
   usuariosDelete,
   enviarSolicitud,
@@ -18,6 +19,7 @@ const {
 const router = Router();
 
 
+router.get("/", validarJWT, obtenerNombre)
 
 // Ruta PUT para modificar un usuario
 router.put("/:id", validarJWT, editarUsuario);

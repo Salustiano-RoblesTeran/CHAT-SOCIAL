@@ -5,6 +5,33 @@ const bcrypt = require("bcryptjs");
 const SolicitudAmistad = require("../models/solicitud")
 
 
+const obtenerNombre = async (req = request, res = response) => {
+  const { _id } = req.usuario; // Obtener el ID del usuario utilizando el token
+
+  try {
+    // Buscar al usuario en la base de datos usando el _id
+    const usuario = await Usuario.findOne({ _id });
+
+    // Verificar si el usuario existe
+    if (!usuario) {
+      return res.status(404).json({
+        msg: "Usuario no encontrado",
+      });
+    }
+
+    // Devolver el nombre del usuario
+    return res.json({
+      nombre: usuario.nombre,
+    });
+  } catch (error) {
+    console.error("Error al buscar usuario:", error);
+    res.status(500).json({
+      msg: "Error al buscar el usuario",
+    });
+  }
+};
+
+
 
 // Controlador para modificar usuario
 const editarUsuario = async (req = request, res = response) => {
@@ -189,8 +216,8 @@ const obtenerContactos = async (req, res) => {
   const usuarioId = req.usuario._id; // Obtener ID del usuario autenticado
 
   try {
-    const usuario = await Usuario.findById(usuarioId).populate("contactos");
-    res.json({ contactos: usuario.contactos });
+    const usuario = await Usuario.findById(usuarioId).populate("amigos");
+    res.json({ amigos: usuario.amigos });
   } catch (error) {
     console.error("Error al obtener contactos:", error);
     res.status(500).json({ msg: "Error al obtener contactos" });
@@ -219,6 +246,7 @@ const obtenerSolicitudes = async (req, res) => {
 
 
 module.exports = {
+  obtenerNombre,
   editarUsuario,
   usuariosDelete,
   buscarUsuario,
