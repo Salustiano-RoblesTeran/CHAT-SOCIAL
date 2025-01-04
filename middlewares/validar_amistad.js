@@ -1,11 +1,11 @@
 const Usuario = require('../models/usuario'); // Importa el modelo de usuario
 
 const verificarAmistad = async (req, res, next) => {
-  const { id } = req.usuario; // El ID del usuario que envía la solicitud
+  const { _id: usuarioId } = req.usuario; // El ID del usuario que envía la solicitud
   const { amigoId } = req.body; // El ID del amigo
 
   try {
-    const usuario = await Usuario.findById(id);
+    const usuario = await Usuario.findById(usuarioId);
     const amigo = await Usuario.findById(amigoId);
 
     // Verifica si ambos usuarios existen
